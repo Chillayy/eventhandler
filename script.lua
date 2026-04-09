@@ -142,7 +142,6 @@ function assignTeams()
 	teamAssignments = {Marines = marinePlayers, Team1 = {}, Team2 = {}, Team3 = {}, Team4 = {}}
 
 	-- round-robin assignment, bumps to next team once current one is full
-	-- round-robin assignment, bumps to next team once current one is full
 	local teamIndex = 1
 	for _, player in ipairs(regularPlayers) do
 		local character = player.Character or player.CharacterAdded:Wait()
