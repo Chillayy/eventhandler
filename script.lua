@@ -31,8 +31,6 @@ function monitorZoneCaptures()
 			for _, zone in ipairs(zonesFolder:GetChildren()) do
 				task.spawn(checkZoneCapture, zone)
 			end
-		else
-			print("No Zones folder found in the selected map!")
 		end
 	end
 	task.wait(1)
@@ -50,8 +48,6 @@ function makeMapVisible(map)
 				object.Enabled  = true
 			end
 		end
-	else
-		print("No map selected.")
 	end
 end
 
@@ -59,8 +55,6 @@ function selectRandomMap()
 	if #maps > 0 then
 		currentMap = maps[math.random(1, #maps)]
 		makeMapVisible(currentMap)
-	else
-		print("No maps available in EventFolder.Maps!")
 	end
 end
 
@@ -167,13 +161,8 @@ function assignTeams()
 				local character = player.Character or player.CharacterAdded:Wait()
 				if character and character:FindFirstChild("HumanoidRootPart") then
 					character:MoveTo(marineSpawn.Position)
-					print(player.Name .. " teleported to Marine spawn location.")
-				else
-					print("Error: Marine teleport failed for " .. player.Name)
 				end
 			end
-		else
-			print("Error: Marines' spawn location not found!")
 		end
 	end
 
@@ -185,9 +174,6 @@ function assignTeams()
 					local spawnLocation = spawnLocations[teamName]
 					if spawnLocation then
 						character:MoveTo(spawnLocation.Position)
-						print(player.Name .. " teleported to " .. teamName)
-					else
-						print("Error: No spawn location found for " .. player.Name)
 					end
 				end
 			end
@@ -449,13 +435,8 @@ function endGame()
 		end
 	end
 
-	print("Winning team determined: ", winningTeam)
-
 	if winningTeam then
-		print("Distributing rewards to: ", winningTeam)
 		distributeRewards(winningTeam)
-	else
-		print("Game ended in a tie! No rewards distributed.")
 	end
 
 	for _, player in ipairs(game.Players:GetPlayers()) do
@@ -519,7 +500,6 @@ function checkZoneCapture(zone)
 		if zoneOwners[zone] and defendingPlayers > 0 and #teamsInZone == 1 and captureProgress > 0 then
 			captureProgress = math.max(0, captureProgress - 0.1)
 			zone.BarGUI.Frame:TweenSize(UDim2.new(captureProgress / captureNeeded, 0, 1, 0), "Out", "Linear", 0.1, true)
-			print("Zone owner is alone! Capture progress decreasing.")
 			task.wait(0.1)
 			continue
 		end
@@ -553,7 +533,6 @@ function checkZoneCapture(zone)
 			if captureProgress >= captureNeeded then
 				zoneOwners[zone] = capturingTeam
 				updateZoneVisuals(zone, capturingTeam)
-				print("Zone captured by " .. capturingTeam .. "!")
 
 				captureProgress = 0
 				zone.BarGUI.Frame:TweenSize(UDim2.new(0, 0, 1, 0), "Out", "Linear", 0.1, true)
@@ -594,7 +573,6 @@ end
 
 function checkWinCondition(teamName)
 	if teamScores[teamName] >= targetScore then
-		print(teamName .. " wins!")
 		if not ended then
 			endGame()
 		end
