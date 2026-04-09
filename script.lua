@@ -3,27 +3,29 @@ local conquestModule = {}
 local Players = game:GetService("Players")
 
 local eventFolder = workspace:FindFirstChild("Event")
-local maps = eventFolder and eventFolder:FindFirstChild("Maps").Conquest:GetChildren() or {}
+local maps = eventFolder and eventFolder:FindFirstChild("Maps").Conquest:GetChildren() or {} -- all conquest maps
 
-local captureRadius = 50
-local pointsPerSecond = 1
-local targetScore = 800
-local matchDuration = 600
+-- match config
+local captureRadius = 50 -- how close you need to be to a zone to count
+local pointsPerSecond = 1 -- points each owned zone drips per second
+local targetScore = 800 -- first to this wins
+local matchDuration = 600 -- 10 minutes in seconds
 local timeRemaining = matchDuration
 local matchActive = false
-local ended = false
+local ended = false -- separate flag to prevent double-ending
 local respawnConnection
 local votingConnection
 
-local eventKillConnections = {}
-local originalPositions = {}
-local teamAssignments = {}
-local zoneOwners = {}
+local eventKillConnections = {} -- connections per player for kill tracking
+local originalPositions = {} -- where players were before the event (for restoring later)
+local teamAssignments = {} -- maps team name -> list of players
+local zoneOwners = {} -- tracks which team owns each zone
 local teamScores = {}
 local availableTeams = {}
 local currentMap = nil
-local votes = {}
+local votes = {} -- player -> true/false based on whether they voted in
 
+-- spins up a separate thread per zone so they all run concurrently
 function monitorZoneCaptures()
 	if currentMap then
 		local zonesFolder = currentMap:FindFirstChild("Zones")
@@ -36,6 +38,7 @@ function monitorZoneCaptures()
 	task.wait(1)
 end
 
+-- makes the map visible and solid, skips the zone/team marker parts
 function makeMapVisible(map)
 	if map then
 		for _, object in pairs(map:GetDescendants()) do
@@ -51,6 +54,7 @@ function makeMapVisible(map)
 	end
 end
 
+-- picks a random map from the conquest folder and shows it
 function selectRandomMap()
 	if #maps > 0 then
 		currentMap = maps[math.random(1, #maps)]
@@ -85,6 +89,7 @@ function selectMapSpawns()
 	for _, team in ipairs(availableTeams) do
 		local spawnLocation
 
+		-- keep rolling until we get one that isn't already taken
 		repeat
 			spawnLocation = spawnList[math.random(1, #spawnList)]
 		until not table.find(assignedSpawns, spawnLocation)
@@ -133,9 +138,11 @@ function assignTeams()
 	end
 
 	local totalRegularPlayers = #regularPlayers
-	local playersPerTeam = math.ceil(totalRegularPlayers / 4)
+	local playersPerTeam = math.ceil(totalRegularPlayers / 4) -- evenly distribute across 4 teams
 	teamAssignments = {Marines = marinePlayers, Team1 = {}, Team2 = {}, Team3 = {}, Team4 = {}}
 
+	-- round-robin assignment, bumps to next team once current one is full
+	-- round-robin assignment, bumps to next team once current one is full
 	local teamIndex = 1
 	for _, player in ipairs(regularPlayers) do
 		local character = player.Character or player.CharacterAdded:Wait()
@@ -182,6 +189,7 @@ function assignTeams()
 
 end
 
+-- listens for an "EVENTKILL" tag being added to a character, which is how kills are signaled
 function enableEventKillTracking()
 	eventKillConnections = {}
 
@@ -213,6 +221,7 @@ function enableEventKillTracking()
 	end
 end
 
+-- a kill is worth 20 points, cleans up the tag after counting it
 function checkConquestScoring(player)
 	local character = player.Character
 	if character and character:FindFirstChild("EVENTKILL") then
@@ -225,6 +234,7 @@ function checkConquestScoring(player)
 	end
 end
 
+-- sends everyone back to where they were before the event started and tops off their health
 function restorePlayerPositions()
 	for player, position in pairs(originalPositions) do
 		local character = player.Character
@@ -237,6 +247,7 @@ function restorePlayerPositions()
 	originalPositions = {}
 end
 
+-- re-applies team assignment on respawn since the old character is gone
 function onPlayerRespawn(player)
 	if not votes[player] then return end
 
@@ -321,6 +332,7 @@ function disableRespawnTracking()
 
 end
 
+-- runs the match countdown, fires ui updates to event players every second
 function startTimer()
 	matchActive = true
 	ended = false
@@ -356,6 +368,7 @@ function startTimer()
 	end
 end
 
+-- winners get full rewards, losers get half
 function distributeRewards(winningTeam)
 	for _, player in ipairs(game.Players:GetPlayers()) do
 		local character = player.Character
@@ -371,6 +384,7 @@ function distributeRewards(winningTeam)
 				beli = math.random(10000,35000)
 			}
 
+			-- losers get everything halved
 			if teamName ~= winningTeam then
 				rewards.busoXP *= 0.5
 				rewards.kenXP *= 0.5
@@ -409,6 +423,7 @@ function distributeRewards(winningTeam)
 	end
 end
 
+-- disconnects all listeners, finds the winner, pays out rewards, hides the map
 function endGame()
 	matchActive = false
 	ended = true
@@ -425,6 +440,7 @@ function endGame()
 
 	eventKillConnections = {}
 
+	-- simple linear scan to find highest scoring team
 	local highestScore = 0
 	local winningTeam = nil
 
@@ -466,6 +482,7 @@ function endGame()
 	end
 end
 
+-- runs every 0.1s per zone, handles contesting, progress bar, and capture
 function checkZoneCapture(zone)
 	if not matchActive then return end
 
@@ -497,6 +514,7 @@ function checkZoneCapture(zone)
 			end
 		end
 
+		-- owner is defending alone, bleed the attacker's progress back
 		if zoneOwners[zone] and defendingPlayers > 0 and #teamsInZone == 1 and captureProgress > 0 then
 			captureProgress = math.max(0, captureProgress - 0.1)
 			zone.BarGUI.Frame:TweenSize(UDim2.new(captureProgress / captureNeeded, 0, 1, 0), "Out", "Linear", 0.1, true)
@@ -514,6 +532,7 @@ function checkZoneCapture(zone)
 			numTeams += 1
 		end
 
+		-- contested by multiple teams, nobody makes progress
 		if numTeams > 1 then
 			task.wait(0.1)
 			continue
@@ -521,6 +540,7 @@ function checkZoneCapture(zone)
 
 			capturingTeam = next(teamsInZone)
 
+			-- different team showed up, reset the bar
 			if lastCapturingTeam and capturingTeam ~= lastCapturingTeam then
 				captureProgress = 0
 			end
@@ -559,6 +579,7 @@ function updateZoneVisuals(zone, teamName)
 	end
 end
 
+-- every second, each owned zone ticks +1 point for its owner
 function awardPoints()
 	while matchActive do
 		for zone, owner in pairs(zoneOwners) do
@@ -571,6 +592,7 @@ function awardPoints()
 	end
 end
 
+-- ends the match the moment any team hits 800 points
 function checkWinCondition(teamName)
 	if teamScores[teamName] >= targetScore then
 		if not ended then
@@ -579,10 +601,12 @@ function checkWinCondition(teamName)
 	end
 end
 
+-- called externally with the voting results before starting
 function conquestModule.receiveVotes(voteData)
 	votes = voteData
 end
 
+-- resets state, picks a map, builds teams, thenstarts all concurrent loops
 function conquestModule.startEvent()
 
 	zoneOwners = {}
