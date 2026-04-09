@@ -1,3 +1,10 @@
+-- conquest game mode module. picks a random map, splits voted-in players into up to 4 teams (plus marines),
+-- teleports them to their spawns, then runs three concurrent loops: a match timer, a per-second point drip for
+-- each owned zone, and a per-zone capture loop that tracks who's standing in it and moves a progress bar.
+-- kills award 20 points on top of zone income. first team to 800 points (or whoever's ahead when the 10-minute
+-- timer runs out) wins. winners get full xp/bounty/beli rewards, losers get half. when it's over, everyone
+-- gets teleported back to where they were before the event started.
+
 local conquestModule = {}
 
 local Players = game:GetService("Players")
